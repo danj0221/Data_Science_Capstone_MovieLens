@@ -20,21 +20,31 @@
 #############################################################
 
 # Note: this process could take a couple of minutes for loading required package: tidyverse and package caret
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-if(!require(arulesViz)) install.packages("arulesViz", repos = "http://cran.us.r-project.org")
+if (!requireNamespace("tidyverse", quietly = TRUE)) install.packages("tidyverse")
+if (!requireNamespace("caret", quietly = TRUE)) install.packages("caret")
+if (!requireNamespace("knitr", quietly = TRUE)) install.packages("knitr")
+
+library(tidyverse)
+library(caret)
+library(knitr)
+
+
+# Download and unzip dataset
+# Define file paths
+data_dir <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K"
+ratings_file <- file.path(data_dir, "ratings.dat")
+movies_file <- file.path(data_dir, "movies.dat")
 
 dl <- "ml-10M100K.zip"
-if(!file.exists(dl))
+if (!file.exists(dl)) {
   download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+  unzip(dl, exdir = data_dir)
+}
 
-ratings_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/ratings.dat"
-if(!file.exists(ratings_file))
-  unzip(dl, ratings_file)
+if (!file.exists(ratings_file) || !file.exists(movies_file)) {
+  stop("Failed to extract the required data files. Check file paths.")
+}
 
-movies_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/movies.dat"
-if(!file.exists(movies_file))
-  unzip(dl, movies_file)
 
 ratings <- as.data.frame(str_split(read_lines(ratings_file), fixed("::"), simplify = TRUE),
                          stringsAsFactors = FALSE)
