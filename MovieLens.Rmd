@@ -2,7 +2,7 @@
 title: "HarvardX: PH125.9x Data Science  \n  MovieLens Rating Prediction Project"
 author: "Delpagodage Ama Nayanahari Jayaweera"
 subtitle : "Data Science: Capstone Project for Harvardx Professional Data Science Certificate (Movielens Project: PH125.9x)"
-date: '10 June 2024'
+date: '01 December 2024'
 output: 
   pdf_document: 
     toc: yes
@@ -395,7 +395,8 @@ The histogram is left skewed, implying that more movies have negative effects
 movie_avgs <- edx %>%
   group_by(movieId) %>%
   summarize(b_i = mean(rating - mu))
-movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("black") , fill = I("skyblue"),
+movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("black") ,
+                     fill = I("skyblue"),
 ylab = "Number of movies", main = "Number of movies with the computed b_i")
 
 ```
@@ -432,7 +433,8 @@ user_avgs<- edx %>%
   group_by(userId) %>%
   filter(n() >= 100) %>%
   summarize(b_u = mean(rating - mu - b_i))
-user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"), fill = I("skyblue"))
+user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"),
+                   fill = I("skyblue"))
 
 ```
 
@@ -596,9 +598,9 @@ This model is effective under the assumption that the average user tends not to 
 
 This analysis affirm to have built a machine learning algorithm to predict movie ratings with MovieLens dataset.The regularized model including the effect of user is characterized by the lower RMSE value and is hence the optimal model to use for the present project.
 
-The optimal model characterised by the lowest RMSE value (0.8649857) lower than the initial evaluation criteria (0.86490) given by the goal of the present project.Improvements in the RMSE could be achieved by adding other effect (genre, year, age,..).Other different machine learning models could also improve the results further, but hardware limitations, as the RAM, are a constraint.
+The optimal model characterised by the lowest RMSE value (0.8648170) lower than the initial evaluation criteria (0.86490) given by the goal of the present project.Improvements in the RMSE could be achieved by adding other effect (genre, year, age,..).Other different machine learning models could also improve the results further, but hardware limitations, as the RAM, are a constraint.
 
-In conclusion, this project aimed to develop a machine learning algorithm for predicting movie ratings using the MovieLens dataset.The final model, a regularized movie and user effect model, achieved the lowest Root Mean Square Error (RMSE) of 0.8649857, surpassing the initial evaluation criteria of 0.86490.This model considers both movie and user effects, providing a more accurate prediction of movie ratings.
+In conclusion, this project aimed to develop a machine learning algorithm for predicting movie ratings using the MovieLens dataset.The final model, a regularized movie and user effect model, achieved the lowest Root Mean Square Error (RMSE) of  0.8648170, surpassing the initial evaluation criteria of 0.86490.This model considers both movie and user effects, providing a more accurate prediction of movie ratings.
 
 ## Limitations
 

@@ -29,22 +29,17 @@ library(caret)
 library(knitr)
 
 
-# Download and unzip dataset
-# Define file paths
-data_dir <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K"
-ratings_file <- file.path(data_dir, "ratings.dat")
-movies_file <- file.path(data_dir, "movies.dat")
-
 dl <- "ml-10M100K.zip"
-if (!file.exists(dl)) {
+if(!file.exists(dl))
   download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
-  unzip(dl, exdir = data_dir)
-}
 
-if (!file.exists(ratings_file) || !file.exists(movies_file)) {
-  stop("Failed to extract the required data files. Check file paths.")
-}
+ratings_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/ratings.dat"
+if(!file.exists(ratings_file))
+  unzip(dl, ratings_file)
 
+movies_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/movies.dat"
+if(!file.exists(movies_file))
+  unzip(dl, movies_file)
 
 ratings <- as.data.frame(str_split(read_lines(ratings_file), fixed("::"), simplify = TRUE),
                          stringsAsFactors = FALSE)
@@ -70,233 +65,410 @@ test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list
 edx <- movielens[-test_index,]
 temp <- movielens[test_index,]
 
-# Make sure userId and movieId in final hold-out test set are also in edx set
-final_holdout_test <- temp %>% 
+# Make sure userId and movieId in validation set are also in edx set
+validation <- temp %>%
   semi_join(edx, by = "movieId") %>%
   semi_join(edx, by = "userId")
 
-# Add rows removed from final hold-out test set back into edx set
-removed <- anti_join(temp, final_holdout_test)
+# Add rows removed from validation set back into edx set
+removed <- anti_join(temp, validation)
 edx <- rbind(edx, removed)
 
+# Remove temporary files to tidy environment
 rm(dl, ratings, movies, test_index, temp, movielens, removed)
 
-######################################################################################
-#### Methods and Analysis                                                         ####
-######################################################################################
+###########################################################################################################################
+# Exploratory Analysis
+###########################################################################################################################
 
-### Data Analysis ###
+# Create plot theme to apply to ggplot2 element text throughout report
+plot_theme <- theme(plot.caption = element_text(size = 12, face = "italic"), axis.title = element_text(size = 12))
 
-# Head
-head(edx) %>%
-  print.data.frame()
+# Tabulate class of variables and first 5 rows included in edx dataset
+rbind((lapply(edx, class)), head(edx)) %>%
+  
+  # Plot distribution of ratings in the edx dataset
+edx %>% ggplot(aes(rating)) +
+  geom_histogram(binwidth = 0.2, color = I("black")) +
+  scale_y_continuous(breaks = c(1000000, 2000000), labels = c("1", "2")) +
+  labs(x = "Rating", y = "Count (in millions)", caption = "Source: edx dataset") + plot_theme
 
-# Total unique movies and users
-summary(edx)
+# Plot average rating by movie in the edx dataset
+edx %>% group_by(movieId) %>%
+  summarise(ave_rating = sum(rating)/n()) %>%
+  ggplot(aes(ave_rating)) +
+  geom_histogram(bins=30, color = I("black")) +
+  labs(x = "Average rating", y = "Number of movies", caption = "source: edx dataset") + plot_theme
 
-# Number of unique movies and users in the edx dataset 
-edx %>%
-  summarize(n_users = n_distinct(userId), 
-            n_movies = n_distinct(movieId))
-
-# Ratings distribution
-edx %>%
-  ggplot(aes(rating)) +
-  geom_histogram(binwidth = 0.25, color = "black", fill = "skyblue") +
-  scale_x_continuous(breaks = seq(0.5, 5, 0.5)) +
-  scale_y_continuous(breaks = seq(0, 3000000, 500000)) +
-  ggtitle("Rating Distribution") +
-  xlab("Rating") +
-  ylab("Count")
-
-# Plot number of ratings per movie
-edx %>%
-  count(movieId) %>%
-  ggplot(aes(n)) +
-  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
+# Plot number of ratings by movie in the edx dataset
+edx %>% 
+  count(movieId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram( bins=30, color = I("black")) +
   scale_x_log10() +
-  xlab("Number of ratings") +
-  ylab("Number of movies") +
-  ggtitle("Number of ratings per movie")
+  labs(x = "Movies", y = "Number of ratings", caption = "Source: edx dataset") + plot_theme
 
-# Table 20 movies rated only once
-library(dplyr)
-library(knitr)
+# Plot average rating by user in the edx dataset
+edx %>% group_by(userId) %>%
+  summarise(ave_rating = sum(rating)/n()) %>%
+  ggplot(aes(ave_rating)) +
+  geom_histogram(bins=30, color = I("black")) +
+  labs(x = "Average rating", y = "Number of users", caption = "Source: edx dataset") + plot_theme
 
-edx %>%
-  group_by(movieId) %>%
-  summarize(count = n()) %>%
-  filter(count == 1) %>%
-  left_join(edx, by = "movieId") %>%
-  ungroup() %>%
-  select(title, rating, count) %>%
-  distinct() %>%
-  slice(1:20) %>%
-  knitr::kable()
-
-
-# Plot number of ratings given by users
-edx %>%
-  count(userId) %>%
-  ggplot(aes(n)) +
-  geom_histogram(bins = 30, color = "black", fill="skyblue") +
+# Plot number of ratings by user in the edx dataset
+edx %>% 
+  count(userId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram( bins=30, color = I("black")) +
   scale_x_log10() +
-  xlab("Number of ratings") + 
-  ylab("Number of users") +
-  ggtitle("Number of ratings given by users")
+  labs(x = "Users", y = "Number of ratings", caption = "Source: edx dataset") + plot_theme
 
-# Plot mean movie ratings given by users
-library(ggplot2)
-library(dplyr)
+# Separate individual genres and ranking them by the total number of ratings in the edx dataset
+edx %>% separate_rows(genres, sep = "\\|") %>%
+  group_by(genres) %>%
+  summarise(count = n(), rating = round(mean(rating), 2)) %>%
+  arrange(desc(count))
 
-# Plotting mean movie ratings given by users who have rated at least 100 movies
-edx %>%
-  group_by(userId) %>%
-  filter(n() >= 100) %>%
-  summarize(b_u = mean(rating)) %>%
-  ggplot(aes(b_u)) +
-  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
-  xlab("Mean rating") +
-  ylab("Number of users") +
-  ggtitle("Mean movie ratings given by users") +
-  scale_x_continuous(limits = c(0.5, 5), breaks = seq(0.5, 5, 0.5)) +
-  theme_light()
+# Plot average rating by genre for genre combinations with at least 100,000 ratings
+edx %>% group_by(genres) %>%
+  summarize(n = n(), avg = mean(rating), se = sd(rating)/sqrt(n())) %>%
+  filter(n >= 100000) %>% 
+  mutate(genres = reorder(genres, avg)) %>%
+  ggplot(aes(x = genres, y = avg, ymin = avg - 2*se, ymax = avg + 2*se)) + 
+  geom_point() +
+  geom_errorbar() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Genre combination", y = "Average Rating", caption = "Source: edx dataset") + plot_theme
 
-######################################################################################
-### Modelling Approach                                                             ###
-######################################################################################
+# Group and list top 10 movie titles based on number of ratings
+edx %>% group_by(title) %>%
+  summarise(n = n()) %>%
+  slice_max(n, n=10)
 
-## Average movie rating model ##
+# Trim and split title (year) column into title and year columns
+edx <- edx %>% mutate(title = str_trim(title)) %>%
+  # split title column to two columns: title and year
+  extract(title, c("title_temp", "year"), regex = "^(.*) \\(([0-9 \\-]*)\\)$", remove = F) %>%
+  # for series take debut date
+  mutate(year = if_else(str_length(year) > 4, as.integer(str_split(year, "-", simplify = T)[1]), as.integer(year))) %>%
+  # replace title NA's with original title
+  mutate(title = if_else(is.na(title_temp), title, title_temp)) %>%
+  # drop title_tmp column
+  select(-title_temp)
 
-# Compute the dataset's mean rating
-mu <- mean(edx$rating)
-mu
+# Plot average rating by year of release in the edx dataset
+edx %>% group_by(year) %>%
+  summarise(rating = mean(rating)) %>%
+  ggplot(aes(year, rating)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Release Year", y = "Average Rating", caption = "Source: edx dataset") + plot_theme
 
+# Plot number of ratings by year of release in the edx dataset
+edx %>% group_by(year) %>%
+  summarise(count = n()) %>%
+  ggplot(aes(year, count)) +
+  geom_line() +
+  scale_y_continuous(breaks = seq(0, 800000, 200000), labels = seq(0, 800, 200)) +
+  labs(x = "Release Year", y = "Number of Ratings (,000s)", caption = "Source: edx dataset") + plot_theme
 
+# Convert timestamp column into date format, removing time data
+edx <- edx %>% mutate(review_date = round_date(as_datetime(timestamp), unit = "week"))
 
-# Test results based on simple prediction
-naive_rmse <- RMSE(final_holdout_test$rating, mu)
-naive_rmse
+# Plot average rating by date of review in the edx dataset
+edx %>% group_by(review_date) %>%
+  summarize(rating = mean(rating)) %>%
+  ggplot(aes(review_date, rating)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Date of Review", y = "Average Rating", caption = "Source: edx dataset") + plot_theme
 
-# Check results
-# Save prediction in data frame
-library(tibble)
-library(knitr)
+###########################################################################################################################
+# Methods - partition edx into train and test sets
+###########################################################################################################################
 
-rmse_results <- tibble(method = "Average movie rating model", RMSE = naive_rmse)
-rmse_results %>% knitr::kable()
+# Create train set and test sets from edx
+set.seed(2020, sample.kind = "Rounding")
+test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.2, list = FALSE)
+train_set <- edx[-test_index,]
+temp <- edx[test_index,]
 
-## Movie effect model ##
+# Make sure userId and movieId in test set are also in train set
+test_set <- temp %>%
+  semi_join(train_set, by = "movieId") %>%
+  semi_join(train_set, by = "userId")
 
-# Simple model taking into account the movie effect b_i
-# Subtract the rating minus the mean for each rating the movie received
-# Plot number of movies with the computed b_i
-library(ggplot2)
+# Add rows removed from test set back into train set
+removed <- anti_join(temp, test_set) 
+train_set <- rbind(train_set, removed)
 
-movie_avgs <- edx %>%
+# Remove temporary files to tidy environment
+rm(test_index, temp, removed) 
+
+###########################################################################################################################
+# Methods - develop, train and test various iterations of the algorithm
+###########################################################################################################################
+
+# Create table and add target RMSE based on project objective
+rmse_objective <- 0.86490
+rmse_results <- data.frame(Method = "Project objective", RMSE = "0.86490", Difference = "-")
+
+# Calculate the overall average rating across all movies included in train set
+mu_hat <- mean(train_set$rating)
+# Calculate RMSE between each rating included in test set and the overall average
+simple_rmse <- RMSE(test_set$rating, mu_hat)
+
+# Estimate movie effect (b_i)
+movie_avgs <- train_set %>%
   group_by(movieId) %>%
-  summarize(b_i = mean(rating - mu))
-
-ggplot(movie_avgs, aes(x = b_i)) +
-  geom_histogram(bins = 10, color = "black", fill="skyblue") +
-  ylab("Number of movies") +
-  ggtitle("Number of movies with the computed b_i")
-
-
-# Test and save rmse results 
-predicted_ratings <- mu +  final_holdout_test %>%
-  left_join(movie_avgs, by='movieId') %>%
+  summarise(b_i = mean(rating - mu_hat))
+# Predict ratings adjusting for movie effects
+predicted_b_i <- mu_hat + test_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
   pull(b_i)
-model_1_rmse <- RMSE(predicted_ratings, final_holdout_test$rating)
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Movie effect model",  
-                                     RMSE = model_1_rmse ))
-# Check results
-rmse_results %>% knitr::kable()
+# Calculate RMSE based on movie effects model
+movie_rmse <- RMSE(predicted_b_i, test_set$rating)
 
-## Movie and user effect model ##
-
-# Plot penaly term user effect #
-user_avgs<- edx %>% 
-  left_join(movie_avgs, by='movieId') %>%
+# Estimate user effect (b_u)
+user_avgs <- train_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
   group_by(userId) %>%
-  filter(n() >= 100) %>%
-  summarize(b_u = mean(rating - mu - b_i))
-user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"), fill = I("skyblue"))
-
-
-user_avgs <- edx %>%
-  left_join(movie_avgs, by='movieId') %>%
-  group_by(userId) %>%
-  summarize(b_u = mean(rating - mu - b_i))
-
-
-# Test and save rmse results 
-predicted_ratings <- final_holdout_test%>%
-  left_join(movie_avgs, by='movieId') %>%
-  left_join(user_avgs, by='userId') %>%
-  mutate(pred = mu + b_i + b_u) %>%
+  summarise(b_u = mean(rating - mu_hat - b_i))
+# Predict ratings adjusting for movie and user effects
+predicted_b_u <- test_set %>%
+  left_join(movie_avgs, by="movieId") %>%
+  left_join(user_avgs, by="userId") %>%
+  mutate(pred = mu_hat + b_i + b_u) %>%
   pull(pred)
+# Calculate RMSE based on user effects model
+user_rmse <- RMSE(predicted_b_u, test_set$rating)
 
-model_2_rmse <- RMSE(predicted_ratings, final_holdout_test$rating)
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Movie and user effect model",  
-                                     RMSE = model_2_rmse))
+# Estimate genre effect (b_g)
+genre_avgs <- train_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
+  left_join(user_avgs, by = "userId") %>%
+  group_by(genres) %>%
+  summarise(b_g = mean(rating - mu_hat - b_i - b_u))
+# Predict ratings adjusting for movie, user and genre effects
+predicted_b_g <- test_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
+  left_join(user_avgs, by = "userId") %>%
+  left_join(genre_avgs, by = "genres") %>%
+  mutate(pred = mu_hat + b_i + b_u + b_g) %>%
+  pull(pred)
+# Calculate RMSE based on genre effects model
+genre_rmse <- RMSE(predicted_b_g, test_set$rating)
 
-# Check result
-rmse_results %>% knitr::kable()
+# Estimate release year effect (b_y)
+year_avgs <- train_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
+  left_join(user_avgs, by = "userId") %>%
+  left_join(genre_avgs, by = "genres") %>%
+  group_by(year) %>%
+  summarise(b_y = mean(rating - mu_hat - b_i - b_u - b_g))
+# Predict ratings adjusting for movie, user, genre and year effects
+predicted_b_y <- test_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
+  left_join(user_avgs, by = "userId") %>%
+  left_join(genre_avgs, by = "genres") %>%
+  left_join(year_avgs, by = "year") %>%
+  mutate(pred = mu_hat + b_i + b_u + b_g + b_y) %>%
+  pull(pred)
+# Calculate RMSE based on year effects model
+year_rmse <- RMSE(predicted_b_y, test_set$rating)
 
-## Regularized movie and user effect model ##
+# Estimate review date effect (b_r)
+date_avgs <- train_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
+  left_join(user_avgs, by = "userId") %>%
+  left_join(genre_avgs, by = "genres") %>%
+  left_join(year_avgs, by = "year") %>%
+  group_by(review_date) %>%
+  summarise(b_r = mean(rating - mu_hat - b_i - b_u - b_g - b_y))
+# Predict ratings adjusting for movie, user, genre, year and review date effects
+predicted_b_r <- test_set %>%
+  left_join(movie_avgs, by = "movieId") %>%
+  left_join(user_avgs, by = "userId") %>%
+  left_join(genre_avgs, by = "genres") %>%
+  left_join(year_avgs, by = "year") %>%
+  left_join(date_avgs, by = "review_date") %>%
+  mutate(pred = mu_hat + b_i + b_u + b_g + b_y + b_r) %>%
+  pull(pred)
+# Calculate RMSE based on review date effects model
+review_rmse <- RMSE(predicted_b_r, test_set$rating)
 
-# lambda is a tuning parameter
-# Use cross-validation to choose it.
-lambdas <- seq(0, 10, 0.25)
-
-
-# For each lambda,find b_i & b_u, followed by rating prediction & testing
-# note:the below code could take some time  
+# Generate a sequence of values for lambda ranging from 3 to 6 with 0.1 increments (inc)
+inc <- 0.1
+lambdas <- seq(4, 6, inc)
+# Regularise model, predict ratings and calculate RMSE for each value of lambda
 rmses <- sapply(lambdas, function(l){
-  
-  mu <- mean(edx$rating)
-  
-  b_i <- edx %>% 
+  b_i <- train_set %>%
     group_by(movieId) %>%
-    summarize(b_i = sum(rating - mu)/(n()+l))
-  
-  b_u <- edx %>% 
+    summarise(b_i = sum(rating - mu_hat)/(n()+l))
+  b_u <- train_set %>%
     left_join(b_i, by="movieId") %>%
     group_by(userId) %>%
-    summarize(b_u = sum(rating - b_i - mu)/(n()+l))
-  
-  predicted_ratings <- 
-    final_holdout_test %>% 
-    left_join(b_i, by = "movieId") %>%
-    left_join(b_u, by = "userId") %>%
-    mutate(pred = mu + b_i + b_u) %>%
+    summarise(b_u = sum(rating - b_i - mu_hat)/(n()+l))
+  b_g <- train_set %>%
+    left_join(b_i, by="movieId") %>%
+    left_join(b_u, by="userId") %>%
+    group_by(genres) %>%
+    summarise(b_g = sum(rating - b_i - b_u - mu_hat)/(n()+l))
+  b_y <- train_set %>%
+    left_join(b_i, by="movieId") %>%
+    left_join(b_u, by="userId") %>%
+    left_join(b_g, by="genres") %>%
+    group_by(year) %>%
+    summarise(b_y = sum(rating - b_i - b_u - b_g - mu_hat)/(n()+l))
+  b_r <- train_set %>%
+    left_join(b_i, by="movieId") %>%
+    left_join(b_u, by="userId") %>%
+    left_join(b_g, by="genres") %>%
+    left_join(b_y, by="year") %>%
+    group_by(review_date) %>%
+    summarise(b_r = sum(rating - b_i - b_u - b_g - mu_hat)/(n()+l))
+  predicted_ratings <- test_set %>%
+    left_join(b_i, by="movieId") %>%
+    left_join(b_u, by="userId") %>%
+    left_join(b_g, by="genres") %>%
+    left_join(b_y, by="year") %>%
+    left_join(b_r, by="review_date") %>%
+    mutate(pred = mu_hat + b_i + b_u + b_g + b_y + b_r) %>%
     pull(pred)
-  
-  return(RMSE(predicted_ratings, final_holdout_test$rating))
+  return(RMSE(predicted_ratings, test_set$rating))
 })
-
-
-# Plot rmses vs lambdas to select the optimal lambda                                                             
-qplot(lambdas, rmses)  
-
-
-# The optimal lambda                                                             
+# Assign optimal tuning parameter (lambda)
 lambda <- lambdas[which.min(rmses)]
-lambda
+# Minimum RMSE achieved
+regularised_rmse <- min(rmses) 
 
-# Test and save results                                                             
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Regularized movie and user effect model",  
-                                     RMSE = min(rmses)))
+###########################################################################################################################
+# Methods - mutate validation dataset to reflect changes to edx (year, date of review) and run final hold-out test
+###########################################################################################################################
 
-# Check result
-rmse_results %>% knitr::kable()
-######################################################################################
-#### Results                                                                      ####  
-######################################################################################
-# RMSE results overview                                                          
-rmse_results %>% knitr::kable()
+# Use mutate function to update validation dataset in line with changes made to edx
+validation <- validation %>% mutate(review_date = round_date(as_datetime(timestamp), unit = "week"))
+validation <- validation %>% mutate(review_date = as_date(review_date))
+validation <- validation %>% mutate(title = str_trim(title)) %>%
+  # split title to title, year
+  extract(title, c("title_temp", "year"), regex = "^(.*) \\(([0-9 \\-]*)\\)$", remove = F) %>%
+  # for series take debut date
+  mutate(year = if_else(str_length(year) > 4, as.integer(str_split(year, "-", simplify = T)[1]), as.integer(year))) %>%
+  # replace title NA's with original title
+  mutate(title = if_else(is.na(title_temp), title, title_temp)) %>%
+  # drop title_tmp column
+  select(-title_temp)
 
+# Use full edx dataset to model all effects, regularised with chosen value for lambda
+b_i <- edx %>%
+  group_by(movieId) %>%
+  summarise(b_i = sum(rating - mu_hat)/(n()+lambda))
+
+b_u <- edx %>%
+  left_join(b_i, by="movieId") %>%
+  group_by(userId) %>%
+  summarise(b_u = sum(rating - b_i - mu_hat)/(n()+lambda))
+
+b_g <- edx %>%
+  left_join(b_i, by="movieId") %>%
+  left_join(b_u, by="userId") %>%
+  group_by(genres) %>%
+  summarise(b_g = sum(rating - b_i - b_u - mu_hat)/(n()+lambda))
+
+b_y <- edx %>%
+  left_join(b_i, by="movieId") %>%
+  left_join(b_u, by="userId") %>%
+  left_join(b_g, by="genres") %>%
+  group_by(year) %>%
+  summarise(b_y = sum(rating - b_i - b_u - b_g - mu_hat)/(n()+lambda))
+
+b_r <- edx %>%
+  left_join(b_i, by="movieId") %>%
+  left_join(b_u, by="userId") %>%
+  left_join(b_g, by="genres") %>%
+  left_join(b_y, by="year") %>%
+  group_by(review_date) %>%
+  summarise(b_r = sum(rating - b_i - b_u - b_g - b_y - mu_hat)/(n()+lambda))
+
+# Predict ratings in validation set using final model
+predicted_ratings <- validation %>%
+  left_join(b_i, by="movieId") %>%
+  left_join(b_u, by="userId") %>%
+  left_join(b_g, by="genres") %>%
+  left_join(b_y, by="year") %>%
+  left_join(b_r, by="review_date") %>%
+  mutate(pred = mu_hat + b_i + b_u + b_g + b_y + b_r) %>%
+  pull(pred)
+
+# Calculate final validation RMSE
+valid_rmse <- RMSE(validation$rating, predicted_ratings)
+
+###########################################################################################################################
+# Results - visualise each of the effects modelled and tabulate RMSE for each iteration during training in edx dataset
+###########################################################################################################################
+
+# Add naive RMSE result to table
+rmse_results <- rmse_results %>% rbind(c("Simple average", round(simple_rmse,5), round(simple_rmse-rmse_objective,5)))
+
+# Plot movie effects distribution
+movie_avgs %>%
+  ggplot(aes(b_i)) +
+  geom_histogram(bins = 10, color = I("black")) +
+  labs(x="Movie effects (b_i)", caption = "Source: train dataset") + plot_theme
+
+# Amend table to include movie effects model RMSE result
+rmse_results <- rmse_results %>% rbind(c("Movie effects (b_i)", round(movie_rmse, 5), round(movie_rmse-rmse_objective, 5)))
+
+# Plot user effects distribution
+user_avgs %>%
+  ggplot(aes(b_u)) +
+  geom_histogram(bins = 10, color = I("black")) +
+  labs(x="User effects (b_u)", caption = "Source: train dataset") + plot_theme
+
+# Amend table to include user effects model RMSE result
+rmse_results <- rmse_results %>% rbind(c("Movie + User effects (b_u)", round(user_rmse, 5), round(user_rmse-rmse_objective, 5)))
+
+# Plot genre effects distribution
+genre_avgs %>%
+  ggplot(aes(b_g)) +
+  geom_histogram(bins = 10, color = I("black")) +
+  labs(x="Genre effects (b_g)", caption = "Source: train dataset") + plot_theme
+
+# Amend table to include genre effects model RMSE result
+rmse_results <- rmse_results %>% rbind(c("Movie, User and Genre effects (b_g)", round(genre_rmse, 5), round(genre_rmse-rmse_objective, 5)))
+
+# Plot year of release effects distribution
+year_avgs %>%
+  ggplot(aes(b_y)) +
+  geom_histogram(bins = 10, color = I("black")) +
+  labs(x="Year effects (b_y)", caption = "Source: train dataset") + plot_theme
+
+# Amend table to include genre effects model RMSE result
+rmse_results <- rmse_results %>% rbind(c("Movie, User, Genre and Year effects (b_y)", round(year_rmse, 5), round(year_rmse-rmse_objective, 5)))
+
+# Plot review date effects distribution
+date_avgs %>%
+  ggplot(aes(b_r)) +
+  geom_histogram(bins = 10, color = I("black")) +
+  labs(x="Review date effects (b_r)", caption = "Source: train dataset") + plot_theme
+
+# Amend table to include review date effects model RMSE result
+rmse_results <- rmse_results %>% rbind(c("Movie, User, Genre, Year and Review Date effects (b_r)", round(review_rmse, 5), round(review_rmse-rmse_objective, 5)))
+
+# Plot RMSE results against each tuning parameter (lambda) in order to find optimal tuner
+data.frame(lambdas, rmses) %>%
+  ggplot(aes(lambdas, rmses)) +
+  geom_point() +
+  geom_hline(yintercept=min(rmses), linetype='dotted', col = "red") +
+  annotate("text", x = lambda, y = min(rmses), label = lambda, vjust = -1, color = "red") +
+  labs(x = "Lambda", y = "RMSE", caption = "Source: train dataset") + plot_theme
+
+# Amend table to include regularised model RMSE result
+rmse_results <- rmse_results %>% rbind(c("Regularised Movie, User, Genre, Year and Review Date effects", round(regularised_rmse, 5), format(round(regularised_rmse-rmse_objective, 5), scientific = F)))
+
+###########################################################################################################################
+# Results - tabulate result of final hold-out test of algorithm trained in full edx dataset to predict in validation datset
+###########################################################################################################################
+
+#Create table to show final validation RMSE result and project objective
+final_results <- data.frame(Method = "Project objective", RMSE = "0.86490", Difference = "-") %>% rbind(c("Validation of Final Model", round(valid_rmse, 5), format(round(valid_rmse-rmse_objective, 5), scientific = F)))
