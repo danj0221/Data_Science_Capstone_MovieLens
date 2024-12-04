@@ -26,7 +26,9 @@ editor_options:
 
 ## Overview
 
-This project is related to the MovieLens Project of the HarvardX: PH125.9x Data Science: Capstone course. The present report begins by providing a general overview of the project and describing its objectives. The given dataset is then prepared and set up for analysis. An exploratory data analysis is conducted to develop a machine learning algorithm capable of predicting movie ratings. The process involves refining the model until a final version is achieved. The results are explained in detail. Finally, the report concludes with some insightful remarks.
+This project is related to the MovieLens Project of the HarvardX: PH125.9x Data Science: Capstone course. The present report begins by providing a general overview of the project and describing its objectives. The given dataset is then prepared and set up for analysis.
+An exploratory data analysis is conducted to develop a machine learning algorithm capable of predicting movie ratings. The process involves refining the model until a final version is achieved.
+The results are explained in detail. Finally, the report concludes with some insightful remarks.
 
 ## Introduction
 
@@ -34,16 +36,21 @@ Recommendation systems utilize user ratings to provide personalized suggestions 
 
 This approach is not limited to products and extends to various domains, such as movies, as demonstrated in project.Recommendation systems represent a widely employed model in machine learning algorithms.
 Netflix, for instance, is recognized for its success, largely attributed to a robust recommender system.
-The significance of such algorithms in product recommendation systems is underscored by events like the Netflix Prize—an open competition seeking the best collaborative filtering algorithm to predict user ratings for films solely based on previous ratings, without additional information about users or films. Project focuses on the development of a movie recommendation system using the 10M version of the MovieLens dataset, curated by GroupLens Research.
+The significance of such algorithms in product recommendation systems is underscored by events like the Netflix Prize—an open competition seeking the best collaborative filtering algorithm to predict user ratings for films solely based on previous ratings, without additional information about users or films.
+Project focuses on the development of a movie recommendation system using the 10M version of the MovieLens dataset, curated by GroupLens Research.
 
 ## Executive Summary
 
-The objective of this project is to train a machine learning algorithm capable of predicting user ratings (ranging from 0.5 to 5 stars). The algorithm will utilize a provided subset (edx dataset supplied by the staff) to predict movie ratings in a given validation set.
+The objective of this project is to train a machine learning algorithm capable of predicting user ratings (ranging from 0.5 to 5 stars).
+The algorithm will utilize a provided subset (edx dataset supplied by the staff) to predict movie ratings in a given validation set.
 
-Algorithm performance will be assessed using the Root Mean Square Error (RMSE), a widely used metric that measures the differences between model-predicted values and observed values. RMSE serves as an accuracy metric, with lower values indicating better performance. It is particularly sensitive to outliers, as larger errors have a more significant impact on the RMSE.
+Algorithm performance will be assessed using the Root Mean Square Error (RMSE), a widely used metric that measures the differences between model-predicted values and observed values.
+RMSE serves as an accuracy metric, with lower values indicating better performance.
+It is particularly sensitive to outliers, as larger errors have a more significant impact on the RMSE.
 
 Four models will be developed and compared based on their resulting RMSE to evaluate their quality.
-The benchmark for this algorithm is an RMSE expected to be lower than 0.86490. The RMSE computation function, for vectors of ratings and their corresponding predictors is as follows: $$ RMSE = \sqrt{\frac{1}{N}\displaystyle\sum_{u,i} (\hat{y}_{u,i}-y_{u,i})^{2}} $$
+The benchmark for this algorithm is an RMSE expected to be lower than 0.86490.
+The RMSE computation function, for vectors of ratings and their corresponding predictors is as follows: $$ RMSE = \sqrt{\frac{1}{N}\displaystyle\sum_{u,i} (\hat{y}_{u,i}-y_{u,i})^{2}} $$
 
 ```{r RMSE_function1, echo = FALSE}
 
@@ -68,22 +75,40 @@ The MovieLens dataset is automatically downloaded
 #############################################################
 # Create edx set, validation set, and submission file
 #############################################################
-# Note: this process could take a couple of minutes for loading required package: tidyverse and 
-# package caret
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-dl <- tempfile()
-download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+# Note: this process could take a couple of minutes for loading required package: tidyverse  
+# and package caret
+if(!require(tidyverse)) 
+  install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) 
+  install.packages("caret", repos = "http://cran.us.r-project.org")
 
-ratings <- read.table(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
-                      col.names = c("userId", "movieId", "rating", "timestamp"))
+dl <- "ml-10M100K.zip"
+if(!file.exists(dl))
+  download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
-movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+ratings_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/ratings.dat"
+if(!file.exists(ratings_file))
+  unzip(dl, ratings_file)
+
+movies_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/movies.dat"
+if(!file.exists(movies_file))
+  unzip(dl, movies_file)
+
+ratings <- as.data.frame(str_split(read_lines(ratings_file), fixed("::"), simplify = TRUE),
+                         stringsAsFactors = FALSE)
+colnames(ratings) <- c("userId", "movieId", "rating", "timestamp")
+ratings <- ratings %>%
+  mutate(userId = as.integer(userId),
+         movieId = as.integer(movieId),
+         rating = as.numeric(rating),
+         timestamp = as.integer(timestamp))
+
+movies <- as.data.frame(str_split(read_lines(movies_file), fixed("::"), simplify = TRUE),
+                        stringsAsFactors = FALSE)
 colnames(movies) <- c("movieId", "title", "genres")
+movies <- movies %>%
+  mutate(movieId = as.integer(movieId))
 
-movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
-                                           title = as.character(title),
-                                           genres = as.character(genres))
 movielens <- left_join(ratings, movies, by = "movieId")
 
 ```
@@ -143,19 +168,22 @@ To enhance the accuracy of predicting movie ratings for users who haven't seen t
 
 ```{r, echo = TRUE, message = FALSE, warning = FALSE, eval = TRUE}
 
-# The Validation subset will be 10% of the MovieLens data.
-set.seed(1)
+# Final hold-out test set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding") # if using R 3.6 or later
+# set.seed(1) # if using R 3.5 or earlier
 test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
 edx <- movielens[-test_index,]
 temp <- movielens[test_index,]
-#Make sure userId and movieId in validation set are also in edx subset:
-validation <- temp %>%
+
+# Make sure userId and movieId in final hold-out test set are also in edx set
+final_holdout_test <- temp %>% 
   semi_join(edx, by = "movieId") %>%
   semi_join(edx, by = "userId")
 
-# Add rows removed from validation set back into edx set
-removed <- anti_join(temp, validation)
+# Add rows removed from final hold-out test set back into edx set
+removed <- anti_join(temp, final_holdout_test)
 edx <- rbind(edx, removed)
+
 rm(dl, ratings, movies, test_index, temp, movielens, removed)
 
 ```
@@ -170,7 +198,10 @@ The algorithm development will exclusively take place on the "edx" subset, with 
 
 ### Data Analysis
 
-To acquaint with the dataset, examine the initial rows of the "edx" subset as shown below. This subset comprises six variables: "userID", "movieID", "rating", "timestamp", "title", and "genres." Each row corresponds to a singular rating provided by a user for a specific movie.
+To acquaint with the dataset, examine the initial rows of the "edx" subset as shown below.
+This subset comprises six variables: UserID MovieID Rating Timestamp Title Genres
+
+Each row corresponds to a singular rating provided by a user for a specific movie.
 
 ```{r head, echo = FALSE}
 
@@ -205,7 +236,7 @@ library(ggplot2)
 
 edx %>%
   ggplot(aes(rating)) +
-  geom_histogram(binwidth = 0.25, color = "black") +
+  geom_histogram(binwidth = 0.25, color = "black", fill = "skyblue") +
   scale_x_continuous(breaks = seq(0.5, 5, 0.5)) +
   scale_y_continuous(breaks = seq(0, 3000000, 500000)) +
   ggtitle("Rating distribution")
@@ -224,7 +255,7 @@ Regularization is a technique used for tuning the function by adding an addition
 edx %>%
 count(movieId) %>%
 ggplot(aes(n)) +
-geom_histogram(bins = 30, color = "black") +
+geom_histogram(bins = 30, color = "black", fill = "skyblue") +
 scale_x_log10() +
 xlab("Number of ratings") +
   ylab("Number of movies") +
@@ -259,7 +290,7 @@ It is observe that the majority of users have rated between 30 and 100 movies. S
 edx %>%
 count(userId) %>%
 ggplot(aes(n)) +
-geom_histogram(bins = 30, color = "black") +
+geom_histogram(bins = 30, color = "black", fill = "skyblue") +
 scale_x_log10() +
 xlab("Number of ratings") + 
 ylab("Number of users") +
@@ -279,7 +310,7 @@ edx %>%
   filter(n() >= 100) %>%
   summarize(b_u = mean(rating)) %>%
   ggplot(aes(b_u)) +
-  geom_histogram(bins = 30, color = "black") +
+  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
   xlab("Mean rating") +
   ylab("Number of users") +
   ggtitle("Mean movie ratings given by users") +
@@ -294,7 +325,8 @@ Previously anticipated, that compute the RMSE, defined as follows:
 
 $$ RMSE = \sqrt{\frac{1}{N}\displaystyle\sum_{u,i} (\hat{y}_{u,i}-y_{u,i})^{2}} $$
 
-Letting NN represent the count of user/movie combinations and summing across all such combinations, the RMSE serves as metric for assessing model accuracy. The RMSE to a standard deviation, signifying the usual error in predictions of movie ratings.
+Letting NN represent the count of user/movie combinations and summing across all such combinations, the RMSE serves as metric for assessing model accuracy.
+The RMSE to a standard deviation, signifying the usual error in predictions of movie ratings.
 
 If the outcome exceeds 1, it indicates that typical error surpasses one star, which is deemed undesirable. The formula for computing the RMSE for vectors of ratings and their corresponding predictions is expressed as follows:
 
@@ -313,9 +345,11 @@ The lower the better, as said previously.
 The first basic model predicts the same rating for all movies and compute the dataset's mean rating.
 The expected rating of the underlying data set is between 3 and 4.
 
-By building the simplest possible recommender system by predicting the same rating for all movies regardless of user who give it. A model based approach assumes the same rating for all movie with all differences explained by random variation :$$ Y_{u, i} = \mu + \epsilon_{u, i} $$ with $\epsilon_{u,i}$ independent error sample from the same distribution centered at 0 and $\mu$ the "true" rating for all movies.
+By building the simplest possible recommender system by predicting the same rating for all movies regardless of user who give it.
+A model based approach assumes the same rating for all movie with all differences explained by random variation :$$ Y_{u, i} = \mu + \epsilon_{u, i} $$ with $\epsilon_{u,i}$ independent error sample from the same distribution centered at 0 and $\mu$ the "true" rating for all movies.
 
-This very simple model makes the assumption that all differences in movie ratings are explained by random variation alone. The estimate that minimize the RMSE is the least square estimate of $Y_{u,i}$ , in this case, is the average of all ratings: The expected rating of the underlying data set is between 3 and 4.
+This very simple model makes the assumption that all differences in movie ratings are explained by random variation alone.
+The estimate that minimize the RMSE is the least square estimate of $Y_{u,i}$ , in this case, is the average of all ratings: The expected rating of the underlying data set is between 3 and 4.
 
 ```{r, echo = TRUE}
 
@@ -328,7 +362,7 @@ If predict all unknown ratings with $\mu$ or mu, it obtain the first naive RMSE:
 
 ```{r naive_rmse, echo = TRUE}
 
-naive_rmse <- RMSE(validation$rating, mu)
+naive_rmse <- RMSE(final_holdout_test$rating, mu)
 naive_rmse
 
 ```
@@ -342,7 +376,8 @@ rmse_results %>% knitr::kable()
 
 ```
 
-This give us baseline RMSE to compare with next modelling approaches. In order to do better than simply predicting the average rating, incorporate some of insights gained during the exploratory data analysis.
+This give us baseline RMSE to compare with next modelling approaches.
+In order to do better than simply predicting the average rating, incorporate some of insights gained during the exploratory data analysis.
 
 ### Movie effect model
 
@@ -358,19 +393,20 @@ The histogram is left skewed, implying that more movies have negative effects
 movie_avgs <- edx %>%
   group_by(movieId) %>%
   summarize(b_i = mean(rating - mu))
-movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("black"),
+movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("black") , fill = I("skyblue"),
 ylab = "Number of movies", main = "Number of movies with the computed b_i")
 
 ```
 
-This is called the penalty term movie effect. Once prediction improve, using this model.
+This is called the penalty term movie effect.
+Once prediction improve, using this model.
 
 ```{r predicted_ratings, echo = TRUE}
 
-predicted_ratings <- mu +  validation %>%
+predicted_ratings <- mu +  final_holdout_test %>%
   left_join(movie_avgs, by='movieId') %>%
   pull(b_i)
-model_1_rmse <- RMSE(predicted_ratings, validation$rating)
+model_1_rmse <- RMSE(predicted_ratings, final_holdout_test$rating)
 rmse_results <- bind_rows(rmse_results,
                           data_frame(method="Movie effect model",  
                                      RMSE = model_1_rmse ))
@@ -378,11 +414,14 @@ rmse_results %>% knitr::kable()
 
 ```
 
-Predicted movie rating based on the fact that movies are rated differently by adding the computed $b_{i}$ to $\mu$. If an individual movie is on average rated worse that the average rating of all movies $\mu$ , predict that it will rated lower that $\mu$ by $b_{i}$, the difference of the individual movie average from the total average. Then see an improvement but this model does not consider the individual user rating effect.
+Predicted movie rating based on the fact that movies are rated differently by adding the computed $b_{i}$ to $\mu$.
+If an individual movie is on average rated worse that the average rating of all movies $\mu$ , predict that it will rated lower that $\mu$ by $b_{i}$, the difference of the individual movie average from the total average.
+Then see an improvement but this model does not consider the individual user rating effect.
 
 ### Movie and user effect model
 
-Compute the average rating for user $\mu$, for those that have rated over 100 movies, said penalty term user effect. In fact users affect the ratings positively or negatively.
+Compute the average rating for user $\mu$, for those that have rated over 100 movies, said penalty term user effect.
+In fact users affect the ratings positively or negatively.
 
 ```{r, echo = TRUE}
 
@@ -391,13 +430,15 @@ user_avgs<- edx %>%
   group_by(userId) %>%
   filter(n() >= 100) %>%
   summarize(b_u = mean(rating - mu - b_i))
-user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"))
+user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"), fill = I("skyblue"))
 
 ```
 
-There is substantial variability across users as well: 
+There is substantial variability across users as well:
 
-some users are very cranky and other love every movie. This implies that further improvement to model my be: $$Y_{u, i} = \mu + b_{i} + b_{u} + \epsilon_{u, i}$$ where $b_{u}$ is a user-specific effect. If a cranky user (negative $b_{u}$ rates a great movie (positive $b_{i}$), the effects counter each other and it may be able to correctly predict that this user gave this great movie a 3 rather than a 5.
+some users are very cranky and other love every movie.
+This implies that further improvement to model my be: $$Y_{u, i} = \mu + b_{i} + b_{u} + \epsilon_{u, i}$$ where $b_{u}$ is a user-specific effect.
+If a cranky user (negative $b_{u}$ rates a great movie (positive $b_{i}$), the effects counter each other and it may be able to correctly predict that this user gave this great movie a 3 rather than a 5.
 
 Compute an approximation by computing $\mu$ and $b_{i}$, and estimating $b_{u}$, as the average of $Y_{u, i} - \mu - b_{i}$.
 
@@ -414,13 +455,13 @@ Construct predictors and see RMSE improves:
 
 ```{r model_2_rmse, echo = TRUE}
 
-predicted_ratings <- validation%>%
+predicted_ratings <- final_holdout_test%>%
   left_join(movie_avgs, by='movieId') %>%
   left_join(user_avgs, by='userId') %>%
   mutate(pred = mu + b_i + b_u) %>%
   pull(pred)
 
-model_2_rmse <- RMSE(predicted_ratings, validation$rating)
+model_2_rmse <- RMSE(predicted_ratings, final_holdout_test$rating)
 rmse_results <- bind_rows(rmse_results,
                           data_frame(method="Movie and user effect model",  
                                      RMSE = model_2_rmse))
@@ -430,21 +471,29 @@ rmse_results %>% knitr::kable()
 
 ### Rating predictions further reduced the RMSE
 
-But made stil mistakes on first model (using only movies). The supposes "best " and "worst "movie were rated by few users, in most cases just one user. These movies were mostly obscure ones. This is because with a few users, we have more uncertainty. Therefore larger estimates of $b_{i}$, negative or positive, are more likely.
+But made stil mistakes on first model (using only movies).
+The supposes "best " and "worst "movie were rated by few users, in most cases just one user.
+These movies were mostly obscure ones.
+This is because with a few users, we have more uncertainty.
+Therefore larger estimates of $b_{i}$, negative or positive, are more likely.
 
 ### Large errors can increase RMSE
 
 Until now, computed standard error and constructed confidence intervals to account for different levels of uncertainty.However, when making predictions, need one number, one prediction, not an interval.
 
-For this, introduce the concept of regularization, that permits to penalize large estimates that come from small sample sizes. The general idea is to add a penalty for large values of $b_{i}$ to the sum of squares equation that minimize.
+For this, introduce the concept of regularization, that permits to penalize large estimates that come from small sample sizes.
+The general idea is to add a penalty for large values of $b_{i}$ to the sum of squares equation that minimize.
 
-So having many large $b_{i}$, make it harder to minimize. Regularization is a method used to reduce the effect of overfitting.
+So having many large $b_{i}$, make it harder to minimize.
+Regularization is a method used to reduce the effect of overfitting.
 
 ### Regularized movie and user effect model
 
-So estimates of $b_{i}$ and $b_{u}$ are caused by movies with very few ratings and in some users that only rated a very small number of movies. Hence this can strongly influence the prediction.
+So estimates of $b_{i}$ and $b_{u}$ are caused by movies with very few ratings and in some users that only rated a very small number of movies.
+Hence this can strongly influence the prediction.
 
-The use of the regularization permits to penalize these aspects.Find the value of lambda (that is a tuning parameter) that will minimize the RMSE. This shrinks the $b_{i}$ and $b_{u}$ in case of small number of ratings.
+The use of the regularization permits to penalize these aspects.Find the value of lambda (that is a tuning parameter) that will minimize the RMSE.
+This shrinks the $b_{i}$ and $b_{u}$ in case of small number of ratings.
 
 ```{r lambdas, echo = TRUE}
 
@@ -464,13 +513,13 @@ rmses <- sapply(lambdas, function(l){
     summarize(b_u = sum(rating - b_i - mu)/(n()+l))
   
   predicted_ratings <- 
-    validation %>% 
+    final_holdout_test %>% 
     left_join(b_i, by = "movieId") %>%
     left_join(b_u, by = "userId") %>%
     mutate(pred = mu + b_i + b_u) %>%
     pull(pred)
   
-  return(RMSE(predicted_ratings, validation$rating))
+  return(RMSE(predicted_ratings, final_holdout_test$rating))
 })
 
 ```
@@ -519,7 +568,7 @@ rmse_results %>% knitr::kable()
 
 ```
 
-Therefore found the lowest value of RMSE that is 0.8649857.
+Therefore found the lowest value of RMSE that is 0.8648170.
 
 # Chapter 4
 
@@ -537,32 +586,32 @@ The components of the model are explained as follows:
 3.  $b_{u}$ is the deviation in the rating behavior of user uu from the overall average, accounting for user-specific preferences.
 4.  $\epsilon_{u, i}$ denotes the error term, representing any random or unaccounted factors affecting the rating.
 
-This model is effective under the assumption that the average user tends not to rate a particularly good or popular movie with an excessively large positive $b_{i}$ value, indicating a strong liking for a specific movie. The model accommodates the nuances of user preferences and item characteristics, striving to provide accurate predictions for user-item ratings based on deviations from the overall average.
+This model is effective under the assumption that the average user tends not to rate a particularly good or popular movie with an excessively large positive $b_{i}$ value, indicating a strong liking for a specific movie.The model accommodates the nuances of user preferences and item characteristics, striving to provide accurate predictions for user-item ratings based on deviations from the overall average.
 
 # Chapter 4
 
 ## Conclusion
 
-This analysis affirm to have built a machine learning algorithm to predict movie ratings with MovieLens dataset. The regularized model including the effect of user is characterized by the lower RMSE value and is hence the optimal model to use for the present project.
+This analysis affirm to have built a machine learning algorithm to predict movie ratings with MovieLens dataset.The regularized model including the effect of user is characterized by the lower RMSE value and is hence the optimal model to use for the present project.
 
-The optimal model characterised by the lowest RMSE value (0.8649857) lower than the initial evaluation criteria (0.86490) given by the goal of the present project. Improvements in the RMSE could be achieved by adding other effect (genre, year, age,..). Other different machine learning models could also improve the results further, but hardware limitations, as the RAM, are a constraint.
+The optimal model characterised by the lowest RMSE value (0.8649857) lower than the initial evaluation criteria (0.86490) given by the goal of the present project.Improvements in the RMSE could be achieved by adding other effect (genre, year, age,..).Other different machine learning models could also improve the results further, but hardware limitations, as the RAM, are a constraint.
 
-In conclusion, this project aimed to develop a machine learning algorithm for predicting movie ratings using the MovieLens dataset. The final model, a regularized movie and user effect model, achieved the lowest Root Mean Square Error (RMSE) of 0.8649857, surpassing the initial evaluation criteria of 0.86490. This model considers both movie and user effects, providing a more accurate prediction of movie ratings.
+In conclusion, this project aimed to develop a machine learning algorithm for predicting movie ratings using the MovieLens dataset.The final model, a regularized movie and user effect model, achieved the lowest Root Mean Square Error (RMSE) of 0.8649857, surpassing the initial evaluation criteria of 0.86490.This model considers both movie and user effects, providing a more accurate prediction of movie ratings.
 
 ## Limitations
 
-Despite the success of the model, there are limitations to consider. The dataset's performance was influenced by movies with few ratings, leading to larger estimates that could impact the RMSE.
-Additionally, hardware limitations, such as RAM constraints, restricted the exploration of more complex machine learning models.
+Despite the success of the model, there are limitations to consider. The dataset's performance was influenced by movies with few ratings, leading to larger estimates that could impact the RMSE. Additionally, hardware limitations, such as RAM constraints, restricted the exploration of more complex machine learning models.
 
 ## Future Work
 
-Future work could involve further enhancing the model by incorporating additional features such as genre, year, and age. Exploring different machine learning models beyond the scope of this project may also yield improvements. Addressing hardware limitations to enable the exploration of more sophisticated algorithms and larger datasets could contribute to refining the predictive accuracy of movie ratings. Additionally, evaluating the model's performance on diverse datasets or extending the analysis to different domains could provide valuable insights.Continuous refinement and optimization are crucial for enhancing the robustness and applicability of the movie rating prediction algorithm.
+Future work could involve further enhancing the model by incorporating additional features such as genre, year, and age. Exploring different machine learning models beyond the scope of this project may also yield improvements. Addressing hardware limitations to enable the exploration of more sophisticated algorithms and larger datasets could contribute to refining the predictive accuracy of movie ratings.
+Additionally, evaluating the model's performance on diverse datasets or extending the analysis to different domains could provide valuable insights.Continuous refinement and optimization are crucial for enhancing the robustness and applicability of the movie rating prediction algorithm.
 
 \pagebreak
 
 # Reference
 
-[1] <https://grouplens.org/datasets/movielens/10m/> 
+[1] <https://grouplens.org/datasets/movielens/10m/>
 
 [2] <https://files.grouplens.org/datasets/movielens/ml-10m.zip>
 

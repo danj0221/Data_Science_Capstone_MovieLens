@@ -24,34 +24,51 @@ if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-
 if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
 if(!require(arulesViz)) install.packages("arulesViz", repos = "http://cran.us.r-project.org")
 
-dl <- tempfile()
-download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+dl <- "ml-10M100K.zip"
+if(!file.exists(dl))
+  download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
-ratings <- read.table(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
-                      col.names = c("userId", "movieId", "rating", "timestamp"))
+ratings_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/ratings.dat"
+if(!file.exists(ratings_file))
+  unzip(dl, ratings_file)
 
-movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+movies_file <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K/movies.dat"
+if(!file.exists(movies_file))
+  unzip(dl, movies_file)
+
+ratings <- as.data.frame(str_split(read_lines(ratings_file), fixed("::"), simplify = TRUE),
+                         stringsAsFactors = FALSE)
+colnames(ratings) <- c("userId", "movieId", "rating", "timestamp")
+ratings <- ratings %>%
+  mutate(userId = as.integer(userId),
+         movieId = as.integer(movieId),
+         rating = as.numeric(rating),
+         timestamp = as.integer(timestamp))
+
+movies <- as.data.frame(str_split(read_lines(movies_file), fixed("::"), simplify = TRUE),
+                        stringsAsFactors = FALSE)
 colnames(movies) <- c("movieId", "title", "genres")
+movies <- movies %>%
+  mutate(movieId = as.integer(movieId))
 
-movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
-                                           title = as.character(title),
-                                           genres = as.character(genres))
 movielens <- left_join(ratings, movies, by = "movieId")
 
-
-# The Validation subset will be 10% of the MovieLens data.
-set.seed(1)
+# Final hold-out test set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding") # if using R 3.6 or later
+# set.seed(1) # if using R 3.5 or earlier
 test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
 edx <- movielens[-test_index,]
 temp <- movielens[test_index,]
-#Make sure userId and movieId in validation set are also in edx subset:
-validation <- temp %>%
+
+# Make sure userId and movieId in final hold-out test set are also in edx set
+final_holdout_test <- temp %>% 
   semi_join(edx, by = "movieId") %>%
   semi_join(edx, by = "userId")
 
-# Add rows removed from validation set back into edx set
-removed <- anti_join(temp, validation)
+# Add rows removed from final hold-out test set back into edx set
+removed <- anti_join(temp, final_holdout_test)
 edx <- rbind(edx, removed)
+
 rm(dl, ratings, movies, test_index, temp, movielens, removed)
 
 ######################################################################################
@@ -86,7 +103,7 @@ edx %>%
 edx %>%
   count(movieId) %>%
   ggplot(aes(n)) +
-  geom_histogram(bins = 30, color = "black") +
+  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
   scale_x_log10() +
   xlab("Number of ratings") +
   ylab("Number of movies") +
@@ -112,7 +129,7 @@ edx %>%
 edx %>%
   count(userId) %>%
   ggplot(aes(n)) +
-  geom_histogram(bins = 30, color = "black") +
+  geom_histogram(bins = 30, color = "black", fill="skyblue") +
   scale_x_log10() +
   xlab("Number of ratings") + 
   ylab("Number of users") +
@@ -128,7 +145,7 @@ edx %>%
   filter(n() >= 100) %>%
   summarize(b_u = mean(rating)) %>%
   ggplot(aes(b_u)) +
-  geom_histogram(bins = 30, color = "black") +
+  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
   xlab("Mean rating") +
   ylab("Number of users") +
   ggtitle("Mean movie ratings given by users") +
@@ -145,8 +162,10 @@ edx %>%
 mu <- mean(edx$rating)
 mu
 
+
+
 # Test results based on simple prediction
-naive_rmse <- RMSE(validation$rating, mu)
+naive_rmse <- RMSE(final_holdout_test$rating, mu)
 naive_rmse
 
 # Check results
@@ -169,16 +188,16 @@ movie_avgs <- edx %>%
   summarize(b_i = mean(rating - mu))
 
 ggplot(movie_avgs, aes(x = b_i)) +
-  geom_histogram(bins = 10, color = "black") +
+  geom_histogram(bins = 10, color = "black", fill="skyblue") +
   ylab("Number of movies") +
   ggtitle("Number of movies with the computed b_i")
 
 
 # Test and save rmse results 
-predicted_ratings <- mu +  validation %>%
+predicted_ratings <- mu +  final_holdout_test %>%
   left_join(movie_avgs, by='movieId') %>%
   pull(b_i)
-model_1_rmse <- RMSE(predicted_ratings, validation$rating)
+model_1_rmse <- RMSE(predicted_ratings, final_holdout_test$rating)
 rmse_results <- bind_rows(rmse_results,
                           data_frame(method="Movie effect model",  
                                      RMSE = model_1_rmse ))
@@ -193,7 +212,7 @@ user_avgs<- edx %>%
   group_by(userId) %>%
   filter(n() >= 100) %>%
   summarize(b_u = mean(rating - mu - b_i))
-user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"))
+user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"), fill = I("skyblue"))
 
 
 user_avgs <- edx %>%
@@ -203,13 +222,13 @@ user_avgs <- edx %>%
 
 
 # Test and save rmse results 
-predicted_ratings <- validation%>%
+predicted_ratings <- final_holdout_test%>%
   left_join(movie_avgs, by='movieId') %>%
   left_join(user_avgs, by='userId') %>%
   mutate(pred = mu + b_i + b_u) %>%
   pull(pred)
 
-model_2_rmse <- RMSE(predicted_ratings, validation$rating)
+model_2_rmse <- RMSE(predicted_ratings, final_holdout_test$rating)
 rmse_results <- bind_rows(rmse_results,
                           data_frame(method="Movie and user effect model",  
                                      RMSE = model_2_rmse))
@@ -240,13 +259,13 @@ rmses <- sapply(lambdas, function(l){
     summarize(b_u = sum(rating - b_i - mu)/(n()+l))
   
   predicted_ratings <- 
-    validation %>% 
+    final_holdout_test %>% 
     left_join(b_i, by = "movieId") %>%
     left_join(b_u, by = "userId") %>%
     mutate(pred = mu + b_i + b_u) %>%
     pull(pred)
   
-  return(RMSE(predicted_ratings, validation$rating))
+  return(RMSE(predicted_ratings, final_holdout_test$rating))
 })
 
 
@@ -270,3 +289,4 @@ rmse_results %>% knitr::kable()
 ######################################################################################
 # RMSE results overview                                                          
 rmse_results %>% knitr::kable()
+
