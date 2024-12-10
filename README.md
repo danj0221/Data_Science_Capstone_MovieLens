@@ -1,3 +1,5 @@
+This will take more time to execute the code.
+
 MovieLens
 
 HarvardX PH125.9x Data Science: Capstone (MovieLens Project Submission)
@@ -6,6 +8,8 @@ The purpose of this project on Movie rating predictions will be compared to the 
 
 This repository contains:
 
-MovieLens.Rmd -> Project report in .rmd format MovieLens.pdf -> Project report in .pdf format MovieLen.R -> R-Script that generates the data analysis
+MovieLens.Rmd -> Project report in .rmd format
+MovieLens.pdf -> Project report in .pdf format 
+MovieLen.R -> R-Script that generates the data analysis
 
 This project was created for the assignment of the EdX Capstone course from the following program: Professional Certificate in Data Science.
