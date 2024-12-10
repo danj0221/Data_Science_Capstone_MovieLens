@@ -34,7 +34,7 @@ library(data.table)
 # https://grouplens.org/datasets/movielens/10m/
 # http://files.grouplens.org/datasets/movielens/ml-10m.zip
 
-data_dir <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K"
+data_dir <- "D:/Edex/Final/Data_Science_Capstone_MovieLens/ml-10M100K"
 ratings_file <- file.path(data_dir, "ratings.dat")
 movies_file <- file.path(data_dir, "movies.dat")
 
@@ -192,6 +192,7 @@ train_set %>%
 # ----------------------------------
 
 # Explore rating date effect
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
 library(lubridate)
 train_set %>% 
   mutate(date=round_date(as_datetime(timestamp),unit="month")) %>% # transform timestamp and rounf to the month
@@ -229,6 +230,7 @@ train_set %>%
   theme(axis.title.y = element_blank()) -> plot_genres
 
 # Plots next to each other to compare
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
 library(gridExtra)
 grid.arrange(plot_date, plot_year, plot_genres, nrow=1, left="Residuals")
 

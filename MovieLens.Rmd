@@ -30,13 +30,14 @@ knitr::opts_chunk$set(warning=FALSE)
 
 # Introduction
 
-This project involves developing a movie recommendation algorithm using the publicly available MovieLens dataset.
-This dataset is based on the **Netflix challenge**, where the goal was to create a recommendation system capable of predicting the star ratings that users of the Netflix platform would give to specific movies.
+This project focuses on the development of a movie recommendation algorithm utilizing the publicly available MovieLens dataset. Inspired by the **Netflix Prize Challenge**, the objective is to design a recommendation system capable of accurately predicting the star ratings that users are likely to assign to specific movies on the Netflix platform.
 
-The MovieLens dataset is sourced from the online repository of the GroupLens research lab and is divided into two subsets: \* the edx set, which will be used for building the recommendation algorithm, and \* the validation set, which will be utilized later in the project to assess the performance of the developed algorithm.
+The MovieLens dataset, obtained from the online repository of the GroupLens Research Lab, is divided into two subsets:
 
-A piece of code provided by **EdX** (not shown in this report) facilitates the download of the data and the generation of these two subsets.
-A preview of the first entries from the dataset is displayed below.
+1. Edx Set: This subset will be used to develop and train the recommendation algorithm.
+2. Validation Set: This subset will be employed to evaluate the performance of the algorithm at a later stage in the project.
+
+A script provided by EdX (not included in this report) facilitates the downloading of the dataset and the creation of the two subsets. Below is a preview of the first few entries from the dataset.
 
 # Key points
 
@@ -57,7 +58,7 @@ library(data.table)
 # https://grouplens.org/datasets/movielens/10m/
 # http://files.grouplens.org/datasets/movielens/ml-10m.zip
 
-data_dir <- "D:/Edex/Data_Science_Capstone_MovieLens/ml-10M100K"
+data_dir <- "D:/Edex/Final/Data_Science_Capstone_MovieLens/ml-10M100K"
 ratings_file <- file.path(data_dir, "ratings.dat")
 movies_file <- file.path(data_dir, "movies.dat")
 
@@ -112,16 +113,17 @@ head(edx,3)
 head(validation,3)
 ```
 
-The **edx** and **validation** sets are two distinct subsets of the MovieLens dataset, both of which share the same structure. Below is a brief descriptive analysis of the edx set, intended to provide an overview of the data and outline the general approach for addressing the challenge.
+The **edx** and **validation** subsets of the MovieLens dataset are structurally identical, ensuring consistency in data analysis and modeling. A brief descriptive analysis of the edx set is provided below to offer an overview of the dataset and outline the strategic approach for addressing the recommendation challenge.
 
-The **edx** set contains `r nrow(edx)` rows and `r ncol(edx)` columns. As illustrated in the preview, the data is structured in a tidy format, with each entry representing a triplet: [`r paste0(colnames(edx)[1],', ', colnames(edx)[2],', ',colnames(edx)[3])`] contained in the first 3 columns.
+The **edx** set contains `r nrow(edx)` rows and `r ncol(edx)` columns. As illustrated in the preview, the data is structured in a tidy format, with each entry representing a triplet, *[`r paste0(colnames(edx)[1],', ', colnames(edx)[2],', ',colnames(edx)[3])`]* contained in the first 3 columns.
+
 This means each row corresponds to a rating given by a user for a specific movie.
 
 -   *`r colnames(edx)[4]`*: the timecode at which the rating was given
 -   *`r colnames(edx)[5]`*: the title of the movie
 -   *`r colnames(edx)[6]`*: all genres the movie belongs to, separated by colons
 
-It is also insightful to note that the dataset is composed of `r n_distinct(edx$userId)` unique users and `r n_distinct(edx$movieId)` unique movies. Thus, if one would like to store the data in a user-movie matrix, the number of elements would be huge (see below).
+It is also insightful to note that the dataset is composed of `r n_distinct(edx$userId)` unique users and `r n_distinct(edx$movieId)` unique movies. Storing this data in a user-movie matrix would result in an exceedingly large number of elements, as illustrated below.
 
 ```{r}
 n_distinct(edx$userId)*n_distinct(edx$movieId)
@@ -133,12 +135,11 @@ This number is about 80 times larger than the number of rows in the **edx** set,
 round(nrow(edx)/(n_distinct(edx$userId)*n_distinct(edx$movieId))*100,1)
 ```
 
-This means that only 1.2 % of the values in the matrix would *not* be NAs - in other words, not every user rated every movie, far from it.
+This implies that only 1.2% of the values in the matrix are non-missing (i.e., actual ratings), highlighting the significant sparsity of the data—most users have not rated most movies. The objective of this project is to address this sparsity by predicting the ratings users would assign to movies they have not yet rated.
 
-> The objective of the project is to reduce the sparsity of this matrix by predicting the rating users would give to movies they have not seen already.
+To accomplish this, develop an algorithm based on the models introduced in the HarvardX Machine Learning course. The methodologies employed will be detailed in the **Analysis** section of this report.
 
-To achieve this, I will develop an algorithm that builds up on the models proposed in the HarvardX Machine Learning course. The methods employed will be described in the **Analysis** section of this report.
-In order to assess the performance of the algorithm, I will produce rating predictions for each user-movie combination in the **validation** set.
+To evaluate the performance of the algorithm, generate rating predictions for each user-movie pair within the **validation** dataset.
 
 These predictions will be compared to the true ratings using the Root Mean Squared Error (RMSE) as defined by : $$RMSE=\sqrt{\frac{1}{N}\sum_{u,i}(\hat{y}_{u,i}-y_{u,i})^2}$$ where:
 
@@ -183,7 +184,7 @@ rm(test_index, temp, removed)
 
 ### Baseline model
 
-I will use the model based on movie and user bias proposed in the HarvardX Machine Learning course as a baseline. As a reminder, this model is defined by the equation:
+The use model based on movie and user bias proposed in the HarvardX Machine Learning course as a baseline. As a reminder, this model is defined by the equation:
 
 $$Y_{u,i}=\mu+b_i+b_u+\varepsilon_{u,i}$$
 
@@ -227,7 +228,7 @@ print(paste("Baseline RMSE is",round(baseline_rmse,5)))
 
 ### Exploratory and visual analysis
 
-From the baseline model described above, I will perform a quick data exploration on the available variables in the train set in order to define the ways to improve the model and decrease the RMSE. Let's first calculate the residuals of the baseline model and plot them as a histogram.
+Based on the baseline model outlined above, conduct an initial exploration of the available variables in the training set. The goal is to identify strategies for improving the model and reducing the RMSE. To start, calculate the residuals of the baseline model and visualize them by plotting a histogram.
 
 ```{r}
 # Add a residuals column to train set
@@ -243,13 +244,14 @@ train_set %>%
   ggplot(aes(residuals)) + geom_histogram() + theme_bw()
 ```
 
-We can see the residuals are still quite widely spread around 0, which means there is some room for improvement. I will now investigate which variables may have an effect on these residuals.
+The residuals are still quite widely spread around 0, which means there is some room for improvement. Now investigate which variables may have an effect on these residuals.
 
 #### Additional effects
 
-First, I will use the *`r colnames(train_set)[4]`* column to determine the effect of rating date on the residuals. Let's transform the timecode contained in the column in a real date and round this date to the nearest month, then store the plot of the residuals vs. rating date.
+First, use the *`r colnames(train_set)[4]`* column to determine the effect of rating date on the residuals. Let's transform the timecode contained in the column in a real date and round this date to the nearest month, then store the plot of the residuals vs. rating date.
 
 ```{r}
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
 library(lubridate)
 train_set %>% 
   mutate(date=round_date(as_datetime(timestamp),unit="month")) %>% 
@@ -262,7 +264,7 @@ train_set %>%
   theme(axis.title.y = element_blank()) -> plot_date
 ```
 
-Then, I will use the *`r colnames(train_set)[5]`* column to extract the movie release year as it is included in the title. The year is always into brackets so it is pretty easy to extract. Let's extract movie year and plot it against residuals, and store this plot
+Then, use the *`r colnames(train_set)[5]`* column to extract the movie release year as it is included in the title. The year is always into brackets so it is pretty easy to extract. Let's extract movie year and plot it against residuals, and store this plot
 
 ```{r}
 train_set %>% 
@@ -276,7 +278,7 @@ train_set %>%
    theme(axis.title.y = element_blank()) -> plot_year
 ```
 
-Finally, I will use the *`r colnames(train_set)[6]`* column to extract the movie genres. A specific movie may belong to many different genres, but to keep it simple I will consider any genres combination as a unique genre. Let's stratify by genre and store the plot against residuals. To make the plot easier to read I will not include the genre name on the x-axis (which can be a quite long combination of different genres), but rather an arbitrary number that I will call *genreId*.
+Finally, use the *`r colnames(train_set)[6]`* column to extract the movie genres. To simplify the analysis, treat each unique combination of genres as a distinct genre. Then stratify the data by genre and plot the residuals against these genres. For better readability, instead of displaying long genre combinations on the x-axis, assign an arbitrary number, genreId, to each genre combination. This will allow for a more concise and interpretable plot.
 
 ```{r}
 
@@ -294,17 +296,18 @@ train_set %>%
   theme(axis.title.y = element_blank()) -> plot_genres
 ```
 
-Let's plot the 3 effects next to each other to be able to compare them. The opacity of each datapoint in the scatterplots is tuned to the standard error i.e. the less opaque the higher the standard error so the more uncertain the residual.
+To facilitate comparison, plot the three effects side by side. In each scatterplot, the opacity of each data point will be adjusted according to the standard error: the less opaque the data point, the higher the standard error, indicating greater uncertainty in the residual. This will provide a clearer visual representation of the residuals and their associated uncertainty across the different effects.
 
 ```{r fig.width=10}
 # plots next to each other
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
 library(gridExtra)
 grid.arrange(plot_date, plot_year, plot_genres, nrow=1, left="Residuals")
 ```
 
-It appears that rating date does not seem to have that much of an effect on the residuals. Movie release year seems to have a moderate effect, especially for old movies (but the standard error is quite high) and for movies released after 1990. Genres seems to have the highest effect even though standard errors are sometimes quite high.
+Upon analyzing the effects, it appears that the rating date does not significantly influence the residuals. The movie release year shows a moderate impact, particularly for older films (with a high standard error) and those released after 1990. However, the most notable effect comes from the genres, which seem to have the strongest influence on the residuals, despite occasional high standard errors. This suggests that genre-related factors might be contributing significantly to the model's performance, even if the data uncertainty is relatively high in some cases.
 
-Thus, to improve RMSE I propose to add a genre and a release year effect to the baseline model. With $g_i$ the genre and $r_i$ the release year for movie $i$, I will try to fit the following model:
+Thus, to improve RMSE propose to add a genre and a release year effect to the baseline model. With $g_i$ the genre and $r_i$ the release year for movie $i$, will try to fit the following model:
 
 $$Y_{u,i}=\mu+b_i+b_u+b_k+b_n+\varepsilon_{u,i}\textrm{ with }k=g_i\textrm{ and }n=r_i$$ Let's build this model using the train set, make predictions on the test set and calculate the first model RMSE.
 
@@ -344,11 +347,11 @@ print(paste("RMSE with my model #1 is",round(mymodel_1_rmse,5)))
 
 ```
 
-The RMSE is slightly better than baseline. To do even better I will now use regularization techniques.
+The RMSE is slightly better than baseline. To do even better now use regularization techniques.
 
 #### Number of ratings - regularization
 
-Let's update the residuals of the new model so we can explore the influence of the number of ratings.
+Let's update the residuals of the new model so can explore the influence of the number of ratings.
 
 ```{r}
 # Update the residuals column in train set
@@ -362,8 +365,7 @@ train_set <- train_set %>%
   select(-b_i, -b_u, -b_k, -b_n)
 ```
 
-Now I can plot the residuals against the number of ratings stratified by movie, user, genres and release year.
-The code to create the 4 plots is not shown here but is similar to the previous residuals plot creation.
+Now, it will plot the residuals against the number of ratings, stratified by movie, user, genres, and release year. The approach to creating these plots will follow a similar process to the previous residuals plot, though the specific code for generating these plots is not shown here. These visualizations will help to further explore the influence of these factors on the residuals and provide deeper insights into model performance.
 
 ```{r include=FALSE}
 # Remove old plots
@@ -440,12 +442,11 @@ one_rating_percent <- one_rating/n_distinct(train_set$movieId)*100
 
 ```
 
-It appears that the residuals are higher for lower number of ratings - this is especially true for the movie effect. This is expected as for a low number of ratings, the standard error of the estimate (the average rating for a given movie/user/genre/year) is expected to be higher. There are even `r one_rating` movies (i.e. `r round(one_rating_percent,1)` % of the movies) for which only 1 rating is available, which leads obviously to overtraining my model.
+It seems that the residuals are indeed higher for movies with fewer ratings, which is particularly noticeable for the movie effect. This outcome is expected, as movies with a low number of ratings have a higher standard error in estimating their average rating (or the average rating for a given user, genre, or release year). This increased uncertainty in the estimation leads to larger residuals, reflecting the model's difficulty in making accurate predictions for these less-rated movies. There are even `r one_rating` movies (i.e. `r round(one_rating_percent,1)` % of the movies) for which only 1 rating is available, which leads obviously to overtraining my model.
 
-To account for these low number of ratings I am going to penalize the estimates coming from small sample sizes.
-If $b_x$ is one of the effects included in my first model, I am now going to calculate $b_x$ not as the average rating for a given $x$, but as: $$b_x(\lambda)=\frac{1}{\lambda+n_x}\sum_{x=1}^{n_x}(Y_{u,i}-\mu) $$ $\lambda$ is a tuning parameter and I am going to use cross-validation to determine the value of $\lambda$ that minimizes the RMSE.
+To account for these low number of ratings going to penalize the estimates coming from small sample sizes. If $b_x$ is one of the effects included in my first model, now going to calculate $b_x$ not as the average rating for a given $x$, but as: $$b_x(\lambda)=\frac{1}{\lambda+n_x}\sum_{x=1}^{n_x}(Y_{u,i}-\mu) $$ $\lambda$ is a tuning parameter and going to use cross-validation to determine the value of $\lambda$ that minimizes the RMSE.
 
-So let's first regularize movie effect only. I will apply a range of lambdas on the calculation of $b_i$ and plot the obtained RMSEs.
+So let's first regularize movie effect only. Apply a range of lambdas on the calculation of $b_i$ and plot the obtained RMSEs.
 
 ```{r}
 # Regularization for movie effect
@@ -489,7 +490,7 @@ tibble(lambdas=lambdas, rmses=rmses) %>%
 
 ```
 
-We can then extract the value of $\lambda$ that minimizes the RMSE and the minimum RMSE for this second model.
+Then extract the value of $\lambda$ that minimizes the RMSE and the minimum RMSE for this second model.
 
 ```{r}
 
@@ -499,7 +500,7 @@ print(paste("Optimal lambda is", l_i))
 print(paste("RMSE with my model #2 is",round(mymodel_2_rmse,5)))
 ```
 
-The RMSE improves a bit further compared to model 1. To do better I will try to regularize all the effects in the model. Let's apply a set of $\lambda$ on the calculation of $b_i$, $b_u$, $b_k$ and $b_n$ and plot the obtained RMSEs.
+The RMSE has shown some improvement compared to **model 1**. To further enhance the model's performance, implement regularization on all the effects in the model. This will help control overfitting, especially for factors with high variance or less data, and ultimately lead to more reliable predictions and a better RMSE. Let's apply a set of $\lambda$ on the calculation of $b_i$, $b_u$, $b_k$ and $b_n$ and plot the obtained RMSEs.
 
 ```{r}
 # Regularization for all effects
@@ -544,7 +545,7 @@ tibble(lambdas=lambdas, rmses=rmses) %>%
 
 ```
 
-We then extract the value of $\lambda$ that minimizes the RMSE and the minimum RMSE for this third model.
+Then extract the value of $\lambda$ that minimizes the RMSE and the minimum RMSE for this third model.
 
 ```{r}
 lambda <- lambdas[which.min(rmses)]
@@ -553,13 +554,11 @@ print(paste("Optimal lambda is", lambda))
 print(paste("RMSE with my model #3 is",round(mymodel_3_rmse,5)))
 ```
 
-The RMSE does not further improve and we observe that our regularization parameter $\lambda$ is the same if we regularize movie effect only or all effects. This makes sense because as we observed on the plots of residuals vs. number of ratings earlier, the movie effect was the most impacted by the low number of ratings for some movies.
-
-Therefore, this analysis allowed me to design 3 models that I will now be able to apply to the **validation** set in order to assess their final performance.
+The RMSE does not further improve and observe that our regularization parameter $\lambda$ is the same if regularize movie effect only or all effects. This approach is logical, as observed earlier that the movie effect was significantly influenced by the low number of ratings for some movies. By regularizing the effects,the aim to mitigate this issue and improve the model’s generalization. Based on this analysis, designed three models that will now apply to the validation set. This will allow me to assess their final performance and determine which model provides the best results.
 
 ## Results
 
-Let's apply all the models I studied in the **Analysis** section and compare them in a table.
+Let's apply all the models studied in the **Analysis** section and compare them in a table.
 
 ```{r}
 
@@ -693,27 +692,25 @@ rmse_results %>% knitr::kable()
 
 ```
 
-> We can see the lowest achieved RMSE is `r min(rmse_results$RMSE)` with `r rmse_results$model[which.min(rmse_results$RMSE)]` corresponding to `r rmse_results$method[which.min(rmse_results$RMSE)]`.
+> The lowest achieved RMSE is `r min(rmse_results$RMSE)` with `r rmse_results$model[which.min(rmse_results$RMSE)]` corresponding to `r rmse_results$method[which.min(rmse_results$RMSE)]`.
 > The target RMSE of 0.86490 is met for all 3 models.
 
 Let's make 2 discussion comments about these results.
 
--   First, we can note that with the most performing model I designed, the RMSE only improved by `r round(abs(mymodel_3_rmse_f-baseline_rmse_f)/baseline_rmse_f*100,2)` % compared to the baseline model. This means that the movie and user effects already capture a large part of the variability in the ratings. The genre and year effects I added only brought a marginal improvement. This actually makes senses as genre and year are intrinsic features of the movie itself, thus quite redundant with the movie effect itself.
--   Second, the lowest achieved RMSE of `r min(rmse_results$RMSE)` remains quite high in itself. It means that if I had to predict a rating for a given user-movie combination, on average I would be quite off - e.g. predicting a 4.3 for a combination that is actually worth 3.5.
+1. **Model Performance:** The most performing model designed shows an RMSE improvement of only `r round(abs(mymodel_3_rmse_f-baseline_rmse_f)/baseline_rmse_f*100,2)` % compared to the baseline model. This suggests that the movie and user effects already capture a significant portion of the variability in ratings. The genre and year effects, which were added to improve the model, provided only marginal improvements. This outcome makes sense, as both genre and year are intrinsic features of the movie, making them somewhat redundant with the movie effect itself.
 
-One limitation of this piece of work can be that I used only a one-fold cross-validation to tune the regularization parameters.
-It may have been interesting to use multiple-folds cross-validation to obtained better tuned $\lambda$s.
-Also, to further improve the model, I thought of collaborative filtering techniques to try to build user similarities.
-Basically, I would calculate a movie effect not using the average of all ratings but of the ratings given by users that are *similar* to the user I want to give a prediction to.
-I tried to work on such models from the present dataset but I crashed R a few times because of the high computation demands.
-I did not want to use prepackaged libraries like *recommenderlab* because I wanted to understand and code myself a collaborative filtering algorithm.
-A way to adapt to computational demands could be to use sparse matrices.
+2. **RMSE Analysis:** The lowest achieved RMSE of `r min(rmse_results$RMSE)` remains relatively high. This indicates that, on average, predictions for a given user-movie combination would be quite off. For instance, if predict a rating of 4.3 for a movie-user pair that actually has a rating of 3.5, the model's prediction would still have a considerable error. This highlights the difficulty of accurately predicting ratings and the inherent challenges in the rating prediction task.
+
+One limitation of this piece of work can be that used only a one-fold cross-validation to tune the regularization parameters. It may have been interesting to use multiple-folds cross-validation to obtained better tuned $\lambda$s.
+
+Also, to further improve the model, thought of collaborative filtering techniques to try to build user similarities. Basically, calculate a movie effect not using the average of all ratings but of the ratings given by users that are *similar* to the user want to give a prediction to. Tried to work on such models from the present dataset but crashed R a few times because of the high computation demands.
+
+Use prepackaged libraries like *recommenderlab* because, wanted to understand and code myself a collaborative filtering algorithm. A way to adapt to computational demands could be to use sparse matrices.
 
 ## Conclusion
 
 This project aimed at providing movie recommendations based on a dataset of previously known user-movie ratings. More specifically, the idea was to predict the rating a given user would give to a movie she/he had not seen already.
 
-The general approach was to design a model based on the effect of different variables on user-movie rating.
-I included 4 effects in this model: movie, user, movie genre and movie release year. I also regularized these effects to account for the low number of ratings observed for some movies/users/genres/years.
+The general approach was to design a model based on the effect of different variables on user-movie rating. Included 4 effects in this model: movie, user, movie genre and movie release year. Regularized these effects to account for the low number of ratings observed for some movies/users/genres/years.
 
-The best result obtained on the **validation** set is a RMSE of `r min(rmse_results$RMSE)` which meets the target of 0.86490. I would think of collaborative filtering as a future approach to build on the present model and further improve the RMSE.
+The best result obtained on the **validation** set is a RMSE of `r min(rmse_results$RMSE)` which meets the target of 0.86490. Collaborative filtering as a future approach to build on the present model and further improve the RMSE.
